@@ -8,12 +8,26 @@
     name="node_frequency" 
     default="200"/>
 
+    <!-- If any of dependency or optional subfiles should not be launched (or
+    are launched separately) set corresponding argument to "false". -->
+    <arg 
+    name="launch_headset_feedback" 
+    default="true"/>
+
     <!-- If set to "true" enable rosbag recording of nodes' outputs. -->
     <arg 
     name="enable_rosbag_recording" 
     default="false"/>
 
     <!-- ======================== END OF SETTINGS ========================== -->
+
+
+    <!-- Oculus headset feedback (dependency): -->
+    <group if="$(arg launch_headset_feedback)">
+        <include 
+        file="$(find oculus_ros)/launch/headset_feedback.launch">
+        </include>
+    </group>
 
 
     <!-- Active neck: -->
