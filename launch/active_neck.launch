@@ -117,6 +117,13 @@
         ">
         </node>    
     </group>
+ 
+    <node 
+    pkg="tf2_ros" 
+    type="static_transform_publisher" 
+    name="active_neck_camera_broadcaster" 
+    args="0 0 0 0 0 0 active_neck/camera_mount active_neck_link"
+    />
 
     <!-- rqt_plot is a resource hog, so if you're seeing high CPU usage, don't launch it  -->
     <!-- <node name="rqt_plot" pkg="rqt_plot" type="rqt_plot"/>

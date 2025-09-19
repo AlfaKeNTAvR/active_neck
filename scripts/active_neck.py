@@ -14,6 +14,8 @@ TODO:
 # # Standart libraries:
 import rospy
 import numpy as np
+import tf2_ros
+import transformations
 
 # # Third party libraries:
 from dynamixel_sdk import *
@@ -23,6 +25,7 @@ from std_msgs.msg import (
     Bool,
     Float64,
 )
+from geometry_msgs.msg import (TransformStamped)
 
 # # Third party messages and services:
 
@@ -63,7 +66,7 @@ class ActiveNeck:
 
         # Protocol version
         self.__PROTOCOL_VERSION = 2.0
-        self.__BAUDRATE = 57600
+        self.__BAUDRATE = 1000000
 
         # Default settings for both motors
         self.__MOTORS = {
@@ -72,12 +75,12 @@ class ActiveNeck:
                     'id': 2,
                     'limits': (-10, 80),
                     'max_speed': 445 - 100,
-                    'direction': 1,
+                    'direction': -1,
                 },
             'yaw':
                 {
                     'id': 1,
-                    'limits': (-75, 75),
+                    'limits': (-135, 135),
                     'max_speed': 445 - 100,
                     'direction': 1,
                 }
@@ -207,6 +210,10 @@ class ActiveNeck:
             rospy.Duration(1.0 / 200),
             self.__read_write_timer,
         )
+
+        # # TF broadcaster:
+        self.__yaw_pose_broadcaster = tf2_ros.StaticTransformBroadcaster()
+        self.__camera_mount_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
     # # Dependency status callbacks:
     # NOTE: each dependency topic should have a callback function, which will
@@ -542,6 +549,60 @@ class ActiveNeck:
         elif current_position >= upper_limit:
             self.__limit_status[name]['upper'] = True
 
+    def __broadcast_yaw_pose(self):
+        """
+        
+        """
+
+        transform_stamped = TransformStamped()
+        transform_stamped.header.stamp = rospy.Time.now()
+        transform_stamped.header.frame_id = (f'/active_neck/base_link')
+        transform_stamped.child_frame_id = (f'/active_neck/yaw_link')
+
+        transform_stamped.transform.translation.x = 0
+        transform_stamped.transform.translation.y = 0
+        transform_stamped.transform.translation.z = 0.1165
+
+        quaternion = transformations.quaternion_from_euler(
+            0,
+            0,
+            np.radians(self.__current_position_deg['yaw']),
+        )
+
+        transform_stamped.transform.rotation.w = quaternion[0]
+        transform_stamped.transform.rotation.x = quaternion[1]
+        transform_stamped.transform.rotation.y = quaternion[2]
+        transform_stamped.transform.rotation.z = quaternion[3]
+
+        self.__yaw_pose_broadcaster.sendTransform(transform_stamped)
+
+    def __broadcast_camera_mount(self):
+        """
+        
+        """
+
+        transform_stamped = TransformStamped()
+        transform_stamped.header.stamp = rospy.Time.now()
+        transform_stamped.header.frame_id = (f'/active_neck/yaw_link')
+        transform_stamped.child_frame_id = (f'/active_neck/camera_mount')
+
+        transform_stamped.transform.translation.x = 0
+        transform_stamped.transform.translation.y = 0
+        transform_stamped.transform.translation.z = 0.0405
+
+        quaternion = transformations.quaternion_from_euler(
+            0,
+            np.radians(self.__current_position_deg['pitch']),
+            0,
+        )
+
+        transform_stamped.transform.rotation.w = quaternion[0]
+        transform_stamped.transform.rotation.x = quaternion[1]
+        transform_stamped.transform.rotation.y = quaternion[2]
+        transform_stamped.transform.rotation.z = quaternion[3]
+
+        self.__camera_mount_broadcaster.sendTransform(transform_stamped)
+
     # # Public methods:
     # NOTE: By default all new class methods should be private.
     def main_loop(self):
@@ -573,6 +634,10 @@ class ActiveNeck:
         float64_message = Float64()
         float64_message.data = self.__current_position_deg['yaw']
         self.__yaw_state.publish(float64_message)
+
+        # Broadcast TFs:
+        self.__broadcast_yaw_pose()
+        self.__broadcast_camera_mount()
 
     def node_shutdown(self):
         """
