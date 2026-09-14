@@ -466,48 +466,46 @@ class ActiveNeck:
         """
         
         """
-
         motor = self.__MOTORS[name]
         motor_id = motor['id']
         max_speed = motor['max_speed']
+        direction = motor.get('direction', 1)
 
-        # Clamp velocity fraction.
-        velocity_fraction = np.clip(velocity_fraction, -1.0, 1.0)
+        # Clamp world-frame command
+        velocity_fraction = float(np.clip(velocity_fraction, -1.0, 1.0))
 
-        # Compute velocity.
-        velocity = int(max_speed * abs(velocity_fraction))
-        if velocity_fraction < 0:
-            velocity = -velocity
+        # Respect software limits in world frame:
+        if velocity_fraction < 0 and self.__limit_status[name]['lower']:
+            velocity_fraction = 0.0
+        if velocity_fraction > 0 and self.__limit_status[name]['upper']:
+            velocity_fraction = 0.0
 
-        if velocity < 0 and self.__limit_status[name]['lower']:
-            velocity = 0
-
-        if velocity > 0 and self.__limit_status[name]['upper']:
-            velocity = 0
+        # Convert world-frame command to motor-frame value:
+        # Dynamixel goal velocity is signed; apply per-motor direction here.
+        velocity_cmd = int(max_speed * velocity_fraction * direction)
 
         # Write velocity.
         result, error = self.__packet_handler.write4ByteTxRx(
             self.__port_handler,
             motor_id,
             self.__ADDR_GOAL_VELOCITY,
-            velocity,
+            velocity_cmd,
         )
-
         if result != COMM_SUCCESS:
             rospy.logerr(
-                f"Failed to set velocity for motor {name}: {self.__packet_handler.getTxRxResult(result)}"
+                f"Failed to set velocity for motor {name}: "
+                f"{self.__packet_handler.getTxRxResult(result)}"
             )
             return
 
     def __read_current_position(self, name):
         """
-        
+        Read motor position in ticks, convert to degrees, and apply direction mapping.
         """
-
         motor = self.__MOTORS[name]
         motor_id = motor['id']
+        direction = motor.get('direction', 1)
 
-        # Read current position.
         dxl_present_position, dxl_comm_result, dxl_error = (
             self.__packet_handler.read4ByteTxRx(
                 self.__port_handler,
@@ -517,18 +515,21 @@ class ActiveNeck:
         )
         if dxl_comm_result != COMM_SUCCESS:
             rospy.logerr(
-                f"Failed to read position for motor {name}: {self.__packet_handler.getTxRxResult(dxl_comm_result)}"
+                f"Failed to read position for motor {name}: "
+                f"{self.__packet_handler.getTxRxResult(dxl_comm_result)}"
             )
             return
         elif dxl_error != 0:
             rospy.logerr(
-                f"Error reading position for motor {name}: {self.__packet_handler.getRxPacketError(dxl_error)}"
+                f"Error reading position for motor {name}: "
+                f"{self.__packet_handler.getRxPacketError(dxl_error)}"
             )
             return
 
-        # Convert position to degrees.
-        position_degrees = (dxl_present_position * 360.0 / 4095.0) - 180
+        # Convert to degrees around 0° center and apply direction to get world-frame angle.
+        position_degrees = ((dxl_present_position * 360.0 / 4095.0) - 180.0) * direction
         self.__current_position_deg[name] = round(position_degrees, 2)
+
 
     def __check_axis_limits(self, name, current_position):
         """
