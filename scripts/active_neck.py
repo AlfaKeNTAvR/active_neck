@@ -214,6 +214,8 @@ class ActiveNeck:
         # # TF broadcaster:
         self.__yaw_pose_broadcaster = tf2_ros.StaticTransformBroadcaster()
         self.__camera_mount_broadcaster = tf2_ros.StaticTransformBroadcaster()
+        self.__last_broadcast_yaw_deg = None
+        self.__last_broadcast_pitch_deg = None
 
     # # Dependency status callbacks:
     # NOTE: each dependency topic should have a callback function, which will
@@ -555,6 +557,13 @@ class ActiveNeck:
         
         """
 
+        # Static transforms are latched, so resend only when the angle changes.
+        # Resending every loop flooded /tf_static for all TF listeners.
+        if self.__current_position_deg['yaw'] == self.__last_broadcast_yaw_deg:
+            return
+
+        self.__last_broadcast_yaw_deg = self.__current_position_deg['yaw']
+
         transform_stamped = TransformStamped()
         transform_stamped.header.stamp = rospy.Time.now()
         transform_stamped.header.frame_id = (f'/active_neck/base_link')
@@ -581,6 +590,15 @@ class ActiveNeck:
         """
         
         """
+
+        # Static transforms are latched, so resend only when the angle changes.
+        if (
+            self.__current_position_deg['pitch']
+            == self.__last_broadcast_pitch_deg
+        ):
+            return
+
+        self.__last_broadcast_pitch_deg = self.__current_position_deg['pitch']
 
         transform_stamped = TransformStamped()
         transform_stamped.header.stamp = rospy.Time.now()
