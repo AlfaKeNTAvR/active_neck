@@ -1,0 +1,16 @@
+<launch>
+    <arg name="node_frequency" default="100"/>
+    <arg name="launch_keyboard_teleop" default="true"/>
+
+    <!-- Active neck -->
+    <node pkg="active_neck" type="active_neck_teleop.py" name="active_neck" output="screen">
+        <param name="node_frequency" value="$(arg node_frequency)"/>
+    </node>
+
+    <!-- Keyboard teleop -->
+    <group if="$(arg launch_keyboard_teleop)">
+        <node pkg="active_neck" type="teleop_neck.py" name="neck_teleop_keyboard" output="screen"/>
+    </group>
+
+    <node pkg="active_neck" type="camera_pose_publisher.py" name="camera_pose" output="screen"/>
+</launch>
